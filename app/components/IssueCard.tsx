@@ -241,7 +241,7 @@ export default function IssueCard({
             <label key={key} className="flex items-center gap-3">
               <input
                 type="checkbox"
-                checked={checklist[key] || false}
+                checked={checklist[key as keyof IssueChecklist] || false}
                 onChange={(e) => handleChecklistChange(key, e.target.checked)}
                 disabled={saving || currentIssue.status === 'sent'}
                 className="h-4 w-4 rounded border-slate-300 disabled:opacity-50"
