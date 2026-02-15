@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
-import { Publication, Issue, IssueArticleSlot } from '@/lib/schema'
+import { Publication, Issue, IssueArticleSlot, IssueChecklist } from '@/lib/schema'
 import { formatDistanceToNow } from 'date-fns'
 import {
   updateSlot,
@@ -25,7 +25,7 @@ export default function IssueCard({
   onRefresh,
 }: IssueCardProps) {
   const [slots, setSlots] = useState<IssueArticleSlot[]>(issueDetails.slots || [])
-  const [checklist, setChecklist] = useState(issueDetails.checklist || {})
+  const [checklist, setChecklist] = useState<IssueChecklist>(issueDetails.checklist || {})
   const [currentIssue, setCurrentIssue] = useState(issue)
   const [saving, setSaving] = useState(false)
 
@@ -54,7 +54,7 @@ export default function IssueCard({
       setSaving(true)
       try {
         await updateChecklist(currentIssue.id, { [field]: value })
-        setChecklist((prev) => ({ ...prev, [field]: value }))
+        setChecklist((prev: IssueChecklist) => ({ ...prev, [field]: value }))
         await onRefresh()
       } catch (error) {
         console.error('Error updating checklist:', error)
