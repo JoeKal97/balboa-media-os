@@ -168,7 +168,7 @@ export default function PlanningView({ data }: PlanningViewProps) {
             <p className="font-medium text-slate-900">Missing Slots</p>
             <p className="mt-2 text-sm text-slate-600">
               Indicates how many article slots still need content. A publication is "at
-              risk" if any articles are missing <24 hours before send.
+              risk" if any articles are missing &lt;24 hours before send.
             </p>
           </div>
         </div>
