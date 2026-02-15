@@ -2,8 +2,8 @@
 
 import { supabase } from './supabaseClient'
 import { Issue, IssueStatus, Publication } from './schema'
-import { addDays, setHours, setMinutes, format, parseISO, nextDay, getDay } from 'date-fns'
-import { toDate } from 'date-fns-tz'
+import { addDays, set, format } from 'date-fns'
+import { toZonedTime, fromZonedTime } from 'date-fns-tz'
 
 const TIMEZONE = 'America/Denver'
 
@@ -25,31 +25,28 @@ export async function listPublications(): Promise<Publication[]> {
  * Get next send datetime for a publication in America/Denver
  */
 function computeNextSendDateTime(pub: Publication): Date {
-  const now = new Date()
-  const [hours, minutes] = pub.send_time_local.split(':').map(Number)
+  const nowUtc = new Date()
+  const nowDenver = toZonedTime(nowUtc, TIMEZONE)
+  const parts = pub.send_time_local.split(':').map((p) => Number(p))
+  const hours = parts[0] ?? 0
+  const minutes = parts[1] ?? 0
+  let candidateDenver = set(nowDenver, {
+    hours,
+    minutes,
+    seconds: 0,
+    milliseconds: 0,
+  })
 
-  // Start from today in Denver timezone
-  let candidate = new Date(now)
-  candidate = setHours(candidate, hours, minutes, 0, 0)
-
-  // If this time has passed, start from tomorrow
-  if (candidate <= now) {
-    candidate = addDays(candidate, 1)
+  if (candidateDenver <= nowDenver) {
+    candidateDenver = addDays(candidateDenver, 1)
   }
 
-  // Find the next occurrence of the target day of week
-  const targetDayOfWeek = pub.send_day_of_week
-  let currentDayOfWeek = getDay(candidate)
-
-  let daysToAdd = (targetDayOfWeek - currentDayOfWeek + 7) % 7
-  if (daysToAdd === 0 && candidate <= now) {
-    daysToAdd = 7
+  const targetDow = pub.send_day_of_week
+  while (candidateDenver.getDay() !== targetDow) {
+    candidateDenver = addDays(candidateDenver, 1)
   }
 
-  candidate = addDays(candidate, daysToAdd)
-  candidate = setHours(candidate, hours, minutes, 0, 0)
-
-  return candidate
+  return fromZonedTime(candidateDenver, TIMEZONE)
 }
 
 /**
@@ -69,7 +66,10 @@ export async function getOrCreateNextIssue(publicationId: string): Promise<Issue
 
   // Check if next issue already exists
   const nextSendDateTime = computeNextSendDateTime(pub)
-  const issueDateLocal = format(nextSendDateTime, 'yyyy-MM-dd')
+  const issueDateLocal = format(
+    toZonedTime(nextSendDateTime, TIMEZONE),
+    'yyyy-MM-dd'
+  )
 
   const { data: existingIssue } = await supabase
     .from('issues')
