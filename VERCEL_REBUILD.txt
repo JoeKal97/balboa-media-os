@@ -1,0 +1,4 @@
+VERCEL FULL REBUILD TRIGGER
+Time: 2026-02-16 12:01 CST
+Force: Complete rebuild + clear all caches
+Commit: Force ISR invalidation

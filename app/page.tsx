@@ -6,6 +6,12 @@ import { detectSendDatetimeColumn } from '@/lib/schemaAdapter'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
+export async function generateMetadata() {
+  return {
+    title: 'Balboa Media OS - Issue Operations',
+  }
+}
+
 export default async function Home() {
   try {
     // Initialize schema detection
