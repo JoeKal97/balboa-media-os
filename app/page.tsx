@@ -18,7 +18,8 @@ export default async function Home() {
       )
     }
 
-    const defaultPub = publications[0]
+    // Use Zootown Lowdown as default, fallback to first publication if not found
+    const defaultPub = publications.find(p => p.name === 'Zootown Lowdown') || publications[0]
     const nextIssue = await getOrCreateNextIssue(defaultPub.id)
     const issueDetails = await getIssueWithDetails(nextIssue.id)
     const issueHistory = await getIssueHistory(defaultPub.id)
