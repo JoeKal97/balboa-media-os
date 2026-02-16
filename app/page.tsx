@@ -33,13 +33,25 @@ export default async function Home() {
       />
     )
   } catch (error) {
+    let errorMessage = 'Unknown error'
+    
+    if (error instanceof Error) {
+      errorMessage = error.message
+    } else if (error && typeof error === 'object' && 'message' in error) {
+      errorMessage = String(error.message)
+    } else if (typeof error === 'string') {
+      errorMessage = error
+    }
+    
+    console.error('Dashboard error:', error)
+    
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 p-6">
         <h2 className="text-lg font-semibold text-red-900">
           Error loading dashboard
         </h2>
         <p className="mt-2 text-sm text-red-700">
-          {error instanceof Error ? error.message : String(error)}
+          {errorMessage}
         </p>
       </div>
     )
