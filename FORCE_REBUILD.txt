@@ -1,0 +1,4 @@
+VERCEL FULL CACHE CLEAR + REBUILD
+Time: 2026-02-16 15:59 CST
+Reason: Database column renamed, cache must be completely cleared
+Action: Force rebuild timestamp to invalidate all cached pages
