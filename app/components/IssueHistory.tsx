@@ -2,6 +2,9 @@
 
 import { Issue } from '@/lib/schema'
 import { formatDistanceToNow, format } from 'date-fns'
+import { toZonedTime } from 'date-fns-tz'
+
+const TIMEZONE = 'America/Denver'
 
 interface IssueHistoryProps {
   issues: Issue[]
@@ -48,7 +51,7 @@ export default function IssueHistory({ issues }: IssueHistoryProps) {
                     {issue.issue_date}
                   </td>
                   <td className="px-4 py-2 text-slate-600">
-                    {format(new Date(issue.send_datetime_local), 'MMM dd, yyyy HH:mm')}
+                    {format(toZonedTime(new Date(issue.send_datetime_utc), TIMEZONE), 'MMM dd, yyyy HH:mm')}
                   </td>
                   <td className="px-4 py-2">
                     <span

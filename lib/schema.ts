@@ -16,7 +16,7 @@ export interface Issue {
   id: string
   publication_id: string
   issue_date: string // YYYY-MM-DD
-  send_datetime_local: string // ISO timestamp
+  send_datetime_utc: string // ISO timestamp in UTC (the actual moment to send)
   status: IssueStatus
   risk_score: number
   created_at: string

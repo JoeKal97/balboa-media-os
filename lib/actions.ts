@@ -75,8 +75,8 @@ export async function getOrCreateNextIssue(publicationId: string): Promise<Issue
     .from('issues')
     .select('*')
     .eq('publication_id', publicationId)
-    .gte('send_datetime_local', new Date().toISOString())
-    .order('send_datetime_local', { ascending: true })
+    .gte('send_datetime_utc', new Date().toISOString())
+    .order('send_datetime_utc', { ascending: true })
     .limit(1)
 
   if (existingIssue && existingIssue.length > 0) {
@@ -85,12 +85,14 @@ export async function getOrCreateNextIssue(publicationId: string): Promise<Issue
 
   // Create new issue in a transaction-like manner
   // 1. Create issue
+  // Note: send_datetime_utc is stored in UTC (the actual moment to send)
+  // The local time representation is computed on-the-fly in the UI using the timezone
   const { data: issueData, error: issueError } = await supabase
     .from('issues')
     .insert({
       publication_id: publicationId,
       issue_date: issueDateLocal,
-      send_datetime_local: nextSendDateTime.toISOString(),
+      send_datetime_utc: nextSendDateTime.toISOString(),
       status: 'draft',
       risk_score: pub.articles_required_per_issue * 2, // All slots missing = full risk
     })
@@ -223,7 +225,7 @@ export async function recomputeRisk(issueId: string) {
   risk += draftSlots * 1
 
   const now = new Date()
-  const sendTime = new Date(issue.send_datetime_local)
+  const sendTime = new Date(issue.send_datetime_utc)
   const hoursUntilSend = (sendTime.getTime() - now.getTime()) / (1000 * 60 * 60)
 
   // +2 if < 24 hours AND (missing slots OR checklist false)
@@ -312,7 +314,7 @@ export async function getIssueHistory(publicationId: string, limit: number = 8) 
     .from('issues')
     .select('*')
     .eq('publication_id', publicationId)
-    .order('send_datetime_local', { ascending: false })
+    .order('send_datetime_utc', { ascending: false })
     .limit(limit)
 
   return data || []

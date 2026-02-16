@@ -1,46 +1,74 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { toZonedTime } from 'date-fns-tz'
 
 interface CountdownTimerProps {
-  sendDateTime: string
+  sendDatetimeUtc: string // ISO string in UTC
+  timezone?: string
 }
 
-export default function CountdownTimer({ sendDateTime }: CountdownTimerProps) {
+const TIMEZONE = 'America/Denver'
+
+export default function CountdownTimer({ 
+  sendDatetimeUtc, 
+  timezone = TIMEZONE 
+}: CountdownTimerProps) {
   const [countdown, setCountdown] = useState({
     days: 0,
     hours: 0,
     minutes: 0,
     seconds: 0,
   })
+  const [displayTime, setDisplayTime] = useState('')
 
   useEffect(() => {
     const updateCountdown = () => {
       try {
-        const now = new Date()
-        const target = new Date(sendDateTime)
+        // Parse the UTC time
+        const targetUtc = new Date(sendDatetimeUtc)
         
         // Validate that we have a valid date
-        if (isNaN(target.getTime())) {
-          console.error('Invalid sendDateTime:', sendDateTime)
+        if (isNaN(targetUtc.getTime())) {
+          console.error('Invalid sendDatetimeUtc:', sendDatetimeUtc)
           return
         }
         
-        const diff = target.getTime() - now.getTime()
+        // Get current time in UTC
+        const nowUtc = new Date()
+        
+        // Calculate difference
+        const diff = targetUtc.getTime() - nowUtc.getTime()
 
-      if (diff <= 0) {
-        setCountdown({ days: 0, hours: 0, minutes: 0, seconds: 0 })
-        return
-      }
+        if (diff <= 0) {
+          setCountdown({ days: 0, hours: 0, minutes: 0, seconds: 0 })
+          setDisplayTime('Send time has passed')
+          return
+        }
 
-      const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
-      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
-      const seconds = Math.floor((diff % (1000 * 60)) / 1000)
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000)
 
-      setCountdown({ days, hours, minutes, seconds })
+        setCountdown({ days, hours, minutes, seconds })
+        
+        // Convert UTC to local timezone for display
+        const targetLocal = toZonedTime(targetUtc, timezone)
+        const displayStr = targetLocal.toLocaleString('en-US', {
+          weekday: 'short',
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          timeZoneName: 'short',
+        })
+        setDisplayTime(displayStr)
       } catch (err) {
         console.error('Error computing countdown:', err)
+        setDisplayTime('Error calculating send time')
       }
     }
 
@@ -48,7 +76,7 @@ export default function CountdownTimer({ sendDateTime }: CountdownTimerProps) {
     const interval = setInterval(updateCountdown, 1000)
 
     return () => clearInterval(interval)
-  }, [sendDateTime])
+  }, [sendDatetimeUtc, timezone])
 
   return (
     <div className="my-6 rounded-lg bg-gradient-to-r from-blue-50 to-indigo-50 p-6">
@@ -82,14 +110,7 @@ export default function CountdownTimer({ sendDateTime }: CountdownTimerProps) {
         </div>
       </div>
       <p className="mt-4 text-sm text-slate-600">
-        Send scheduled for: {(() => {
-          try {
-            const date = new Date(sendDateTime)
-            return isNaN(date.getTime()) ? 'Invalid date' : date.toLocaleString()
-          } catch {
-            return 'Invalid date'
-          }
-        })()}
+        Send scheduled for: {displayTime}
       </p>
     </div>
   )
