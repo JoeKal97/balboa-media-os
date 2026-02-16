@@ -16,9 +16,17 @@ export default function CountdownTimer({ sendDateTime }: CountdownTimerProps) {
 
   useEffect(() => {
     const updateCountdown = () => {
-      const now = new Date()
-      const target = new Date(sendDateTime)
-      const diff = target.getTime() - now.getTime()
+      try {
+        const now = new Date()
+        const target = new Date(sendDateTime)
+        
+        // Validate that we have a valid date
+        if (isNaN(target.getTime())) {
+          console.error('Invalid sendDateTime:', sendDateTime)
+          return
+        }
+        
+        const diff = target.getTime() - now.getTime()
 
       if (diff <= 0) {
         setCountdown({ days: 0, hours: 0, minutes: 0, seconds: 0 })
@@ -31,6 +39,9 @@ export default function CountdownTimer({ sendDateTime }: CountdownTimerProps) {
       const seconds = Math.floor((diff % (1000 * 60)) / 1000)
 
       setCountdown({ days, hours, minutes, seconds })
+      } catch (err) {
+        console.error('Error computing countdown:', err)
+      }
     }
 
     updateCountdown()
@@ -71,7 +82,14 @@ export default function CountdownTimer({ sendDateTime }: CountdownTimerProps) {
         </div>
       </div>
       <p className="mt-4 text-sm text-slate-600">
-        Send scheduled for: {new Date(sendDateTime).toLocaleString()}
+        Send scheduled for: {(() => {
+          try {
+            const date = new Date(sendDateTime)
+            return isNaN(date.getTime()) ? 'Invalid date' : date.toLocaleString()
+          } catch {
+            return 'Invalid date'
+          }
+        })()}
       </p>
     </div>
   )
