@@ -65,6 +65,9 @@ export async function getOrCreateNextIssue(publicationId: string): Promise<Issue
 
   const pub: Publication = pubData
 
+  // Detect which column name to use
+  const dateTimeColumnName = await getDatetimeColumnName()
+
   // Check if next issue already exists
   const nextSendDateTime = computeNextSendDateTime(pub)
   const issueDateLocal = format(
@@ -93,8 +96,6 @@ export async function getOrCreateNextIssue(publicationId: string): Promise<Issue
   // Create new issue in a transaction-like manner
   // 1. Create issue
   // The app auto-detects whether to use send_datetime_utc (new) or send_datetime_local (old)
-  const dateTimeColumnName = await getDatetimeColumnName()
-  
   const issuePayload: any = {
     publication_id: publicationId,
     issue_date: issueDateLocal,

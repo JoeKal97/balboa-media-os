@@ -16,8 +16,8 @@ interface PlanningViewProps {
 
 export default function PlanningView({ data }: PlanningViewProps) {
   const sortedData = [...data].sort((a, b) => {
-    const aTime = new Date(a.issue.send_datetime_local).getTime()
-    const bTime = new Date(b.issue.send_datetime_local).getTime()
+    const aTime = new Date(a.issue.send_datetime_utc).getTime()
+    const bTime = new Date(b.issue.send_datetime_utc).getTime()
     return aTime - bTime
   })
 
@@ -69,10 +69,10 @@ export default function PlanningView({ data }: PlanningViewProps) {
                     {publication.name}
                   </td>
                   <td className="px-6 py-4 text-slate-600">
-                    {format(new Date(issue.send_datetime_local), 'EEE, MMM dd @ HH:mm')}
+                    {format(new Date(issue.send_datetime_utc), 'EEE, MMM dd @ HH:mm')}
                   </td>
                   <td className="px-6 py-4 text-slate-600">
-                    {formatDistance(new Date(issue.send_datetime_local), new Date(), {
+                    {formatDistance(new Date(issue.send_datetime_utc), new Date(), {
                       addSuffix: true,
                     })}
                   </td>
