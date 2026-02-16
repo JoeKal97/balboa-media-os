@@ -4,6 +4,7 @@ import { supabase } from './supabaseClient'
 import { Issue, IssueStatus, Publication } from './schema'
 import { addDays, set, format } from 'date-fns'
 import { toZonedTime, fromZonedTime } from 'date-fns-tz'
+import { normalizeIssueData, normalizeIssuesArray, getDatetimeColumnName } from './schemaAdapter'
 
 const TIMEZONE = 'America/Denver'
 
@@ -75,33 +76,44 @@ export async function getOrCreateNextIssue(publicationId: string): Promise<Issue
     .from('issues')
     .select('*')
     .eq('publication_id', publicationId)
-    .gte('send_datetime_utc', new Date().toISOString())
-    .order('send_datetime_utc', { ascending: true })
+    .order(dateTimeColumnName, { ascending: true })
     .limit(1)
 
   if (existingIssue && existingIssue.length > 0) {
-    return existingIssue[0]
+    const issue = existingIssue[0]
+    const normalized = normalizeIssueData(issue)
+    
+    // Check if it's in the future
+    const sendTime = new Date(normalized.send_datetime_utc)
+    if (sendTime > new Date()) {
+      return normalized
+    }
   }
 
   // Create new issue in a transaction-like manner
   // 1. Create issue
-  // Note: send_datetime_utc is stored in UTC (the actual moment to send)
-  // The local time representation is computed on-the-fly in the UI using the timezone
+  // The app auto-detects whether to use send_datetime_utc (new) or send_datetime_local (old)
+  const dateTimeColumnName = await getDatetimeColumnName()
+  
+  const issuePayload: any = {
+    publication_id: publicationId,
+    issue_date: issueDateLocal,
+    status: 'draft',
+    risk_score: pub.articles_required_per_issue * 2, // All slots missing = full risk
+  }
+  
+  // Use the correct column name for this database
+  issuePayload[dateTimeColumnName] = nextSendDateTime.toISOString()
+  
   const { data: issueData, error: issueError } = await supabase
     .from('issues')
-    .insert({
-      publication_id: publicationId,
-      issue_date: issueDateLocal,
-      send_datetime_utc: nextSendDateTime.toISOString(),
-      status: 'draft',
-      risk_score: pub.articles_required_per_issue * 2, // All slots missing = full risk
-    })
+    .insert(issuePayload)
     .select()
     .single()
 
   if (issueError) throw issueError
 
-  const issue: Issue = issueData
+  const issue: Issue = normalizeIssueData(issueData)
 
   // 2. Create article slots
   const slots = Array.from({ length: pub.articles_required_per_issue }, (_, i) => ({
@@ -225,7 +237,8 @@ export async function recomputeRisk(issueId: string) {
   risk += draftSlots * 1
 
   const now = new Date()
-  const sendTime = new Date(issue.send_datetime_utc)
+  const normalizedIssue = normalizeIssueData(issue)
+  const sendTime = new Date(normalizedIssue.send_datetime_utc)
   const hoursUntilSend = (sendTime.getTime() - now.getTime()) / (1000 * 60 * 60)
 
   // +2 if < 24 hours AND (missing slots OR checklist false)
@@ -300,7 +313,7 @@ export async function getIssueWithDetails(issueId: string) {
     .single()
 
   return {
-    issue,
+    issue: normalizeIssueData(issue),
     slots,
     checklist,
   }
@@ -310,12 +323,14 @@ export async function getIssueWithDetails(issueId: string) {
  * Fetch issue history for a publication
  */
 export async function getIssueHistory(publicationId: string, limit: number = 8) {
+  const dateTimeColumnName = await getDatetimeColumnName()
+  
   const { data } = await supabase
     .from('issues')
     .select('*')
     .eq('publication_id', publicationId)
-    .order('send_datetime_utc', { ascending: false })
+    .order(dateTimeColumnName, { ascending: false })
     .limit(limit)
 
-  return data || []
+  return normalizeIssuesArray(data || [])
 }

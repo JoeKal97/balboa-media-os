@@ -1,8 +1,12 @@
 import { listPublications, getOrCreateNextIssue, getIssueWithDetails, getIssueHistory } from '@/lib/actions'
 import CommandCenter from '@/app/components/CommandCenter'
+import { detectSendDatetimeColumn } from '@/lib/schemaAdapter'
 
 export default async function Home() {
   try {
+    // Initialize schema detection
+    await detectSendDatetimeColumn()
+    
     const publications = await listPublications()
 
     if (publications.length === 0) {
