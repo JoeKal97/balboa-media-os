@@ -2,6 +2,10 @@ import { listPublications, getOrCreateNextIssue, getIssueWithDetails, getIssueHi
 import CommandCenter from '@/app/components/CommandCenter'
 import { detectSendDatetimeColumn } from '@/lib/schemaAdapter'
 
+// Force dynamic rendering - always fetch fresh data from Supabase
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export default async function Home() {
   try {
     // Initialize schema detection
