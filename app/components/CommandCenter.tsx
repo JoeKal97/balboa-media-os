@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Publication, Issue } from '@/lib/schema'
 import { getOrCreateNextIssue, getIssueWithDetails, getIssueHistory } from '@/lib/actions'
 import IssueCard from './IssueCard'
@@ -26,6 +26,25 @@ export default function CommandCenter({
   const [issueDetails, setIssueDetails] = useState(initialIssueDetails)
   const [issueHistory, setIssueHistory] = useState(initialIssueHistory)
   const [loading, setLoading] = useState(false)
+
+  // Force refresh on mount to get fresh data from database
+  useEffect(() => {
+    const refreshOnMount = async () => {
+      try {
+        const freshIssue = await getOrCreateNextIssue(initialPublication.id)
+        const freshDetails = await getIssueWithDetails(freshIssue.id)
+        const freshHistory = await getIssueHistory(initialPublication.id)
+        
+        setCurrentIssue(freshIssue)
+        setIssueDetails(freshDetails)
+        setIssueHistory(freshHistory)
+      } catch (error) {
+        console.error('Error refreshing on mount:', error)
+      }
+    }
+    
+    refreshOnMount()
+  }, [initialPublication.id])
 
   const handlePublicationChange = useCallback(async (pubId: string) => {
     const newPub = publications.find(p => p.id === pubId)
