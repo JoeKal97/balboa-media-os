@@ -35,7 +35,13 @@ export default function CommandCenter({
         const freshDetails = await getIssueWithDetails(freshIssue.id)
         const freshHistory = await getIssueHistory(initialPublication.id)
         
-        setCurrentIssue(freshIssue)
+        // Normalize issue data to ensure send_datetime_utc field exists
+        const normalizedIssue = {
+          ...freshIssue,
+          send_datetime_utc: freshIssue.send_datetime_utc || (freshIssue as any).send_datetime_local
+        }
+        
+        setCurrentIssue(normalizedIssue)
         setIssueDetails(freshDetails)
         setIssueHistory(freshHistory)
       } catch (error) {
