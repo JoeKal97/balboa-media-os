@@ -138,7 +138,7 @@ export default function IssueCard({
         </div>
 
         {/* Countdown */}
-        <CountdownTimer sendDatetimeUtc={currentIssue.send_datetime_utc || (currentIssue as any).send_datetime_local} />
+        <CountdownTimer sendDatetimeUtc={currentIssue.send_datetime_utc} />
 
         {/* Status Badge */}
         <div className="mt-4">
