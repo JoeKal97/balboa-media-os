@@ -20,7 +20,27 @@ export default function CountdownTimer({
     minutes: 0,
     seconds: 0,
   })
-  const [displayTime, setDisplayTime] = useState('')
+  const [displayTime, setDisplayTime] = useState(() => {
+    try {
+      const targetUtc = new Date(sendDatetimeUtc)
+      if (!isNaN(targetUtc.getTime())) {
+        const targetLocal = toZonedTime(targetUtc, timezone)
+        return targetLocal.toLocaleString('en-US', {
+          weekday: 'short',
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          timeZoneName: 'short',
+        })
+      }
+    } catch (e) {
+      console.error('Error initializing display time:', e)
+    }
+    return 'Unable to calculate send time'
+  })
 
   useEffect(() => {
     const updateCountdown = () => {
@@ -72,6 +92,7 @@ export default function CountdownTimer({
       }
     }
 
+    // Initialize on mount and whenever props change
     updateCountdown()
     const interval = setInterval(updateCountdown, 1000)
 
