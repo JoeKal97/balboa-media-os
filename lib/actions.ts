@@ -337,25 +337,8 @@ export async function getIssueHistory(publicationId: string, limit: number = 8) 
  * Matches by URL and updates status from "draft" to "published"
  */
 export async function syncFromLetterman(issueId: string) {
-  // Get Letterman API key from credentials file
-  const fs = require('fs')
-  const path = require('path')
-  const credPath = path.join(process.cwd(), '..', 'credentials', 'titanium_software.txt')
-  
-  let lettermanKey = ''
-  try {
-    const creds = fs.readFileSync(credPath, 'utf-8')
-    const match = creds.match(/Letterman:\s*(.+)/i)
-    if (match) {
-      lettermanKey = match[1].trim()
-    }
-  } catch (err) {
-    throw new Error('Letterman API key not found in credentials/titanium_software.txt')
-  }
-
-  if (!lettermanKey) {
-    throw new Error('Letterman API key not found in credentials')
-  }
+  // Hardcoded Letterman API key (from credentials file)
+  const lettermanKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2OGM2MjVlODNlZGJjNTNmMWJmODc0YmIiLCJrZXkiOiIzMTBhOGU3MTEzMDQ1ODM3NmU0ZGM1M2M0ZDg5ZWNmMCIsImlkIjoiNjk4M2U0MjhlOGMwYjZmOTU4YTcwNTkzIiwiaWF0IjoxNzcwMjUxMzA1LCJleHAiOjE4MDE3ODczMDV9.9zHseu2Jo9BdrghX7e8q3vUYpqoeQhjXttwLOk6xyjs'
 
   // Get all slots for this issue
   const { data: slots, error: slotsError } = await supabase
