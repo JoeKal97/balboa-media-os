@@ -298,9 +298,22 @@ export async function setIssueStatus(issueId: string, status: IssueStatus) {
 
   if (error) throw new Error(`Failed to update issue status: ${error.message}`)
 
-  // If marking as sent, update checklist
+  // If marking as sent, update checklist and create next issue
   if (status === 'sent') {
     await updateChecklist(issueId, { sent: true })
+    
+    // 🎯 CRITICAL: Create the next issue now that this one is sent
+    // Get the publication ID from the issue
+    const { data: issue } = await supabase
+      .from('issues')
+      .select('publication_id')
+      .eq('id', issueId)
+      .single()
+    
+    if (issue) {
+      // This will create the next issue for the following week
+      await getOrCreateNextIssue(issue.publication_id)
+    }
   }
 
   // Recompute risk
