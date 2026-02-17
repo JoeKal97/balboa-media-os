@@ -413,8 +413,22 @@ export async function syncFromLetterman(issueId: string) {
     }
   }
 
-  // Recompute risk after updates
+  // After updates, check if all slots are now published
   if (updated > 0) {
+    // Fetch all slots for this issue (fresh data)
+    const { data: allSlots } = await supabase
+      .from('issue_article_slots')
+      .select('status')
+      .eq('issue_id', issueId)
+
+    const allPublished = allSlots?.every(s => s.status === 'published') || false
+
+    // If all slots are published, auto-complete the "articles_complete" checklist
+    if (allPublished) {
+      await updateChecklist(issueId, { articles_complete: true })
+    }
+
+    // Recompute risk after checklist update
     await recomputeRisk(issueId)
   }
 
