@@ -112,6 +112,7 @@ export default function CommandCenter({
 
       {/* Next Issue Card */}
       <IssueCard
+        key={currentIssue.id}
         publication={selectedPub}
         issue={currentIssue}
         issueDetails={issueDetails}

@@ -29,6 +29,13 @@ export default function IssueCard({
   const [currentIssue, setCurrentIssue] = useState(issue)
   const [saving, setSaving] = useState(false)
 
+  // Sync internal state when props change (e.g., user selects different publication)
+  useEffect(() => {
+    setCurrentIssue(issue)
+    setSlots(issueDetails.slots || [])
+    setChecklist(issueDetails.checklist || {})
+  }, [issue, issueDetails])
+
   const handleSlotChange = useCallback(
     async (slotId: string, field: string, value: any) => {
       setSaving(true)
