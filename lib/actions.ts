@@ -220,6 +220,8 @@ export async function updateChecklist(
 
 /**
  * Recompute risk score for an issue
+ * NEW LOGIC: Only show risk if within 3 days (72 hours) of deadline
+ * AND 2+ conditions are met
  */
 export async function recomputeRisk(issueId: string) {
   // Fetch issue and related data
@@ -242,40 +244,76 @@ export async function recomputeRisk(issueId: string) {
     .eq('issue_id', issueId)
     .single()
 
-  // Compute risk
-  let risk = 0
-
-  // +2 for each missing slot
-  const missingSlots = slots?.filter(s => s.status === 'missing').length || 0
-  risk += missingSlots * 2
-
-  // +1 for each draft slot
-  const draftSlots = slots?.filter(s => s.status === 'draft').length || 0
-  risk += draftSlots * 1
-
   const now = new Date()
   const normalizedIssue = normalizeIssueData(issue)
   const sendTime = new Date(normalizedIssue.send_datetime_utc)
   const hoursUntilSend = (sendTime.getTime() - now.getTime()) / (1000 * 60 * 60)
+  const daysUntilSend = hoursUntilSend / 24
 
-  // +2 if < 24 hours AND (missing slots OR checklist false)
-  if (hoursUntilSend < 24) {
-    const hasProblems =
-      missingSlots > 0 ||
-      draftSlots > 0 ||
-      !checklist?.articles_complete ||
-      !checklist?.seo_verified ||
-      !checklist?.internal_links_verified ||
-      !checklist?.formatted
-
-    if (hasProblems) {
-      risk += 2
-    }
+  // 🎯 NEW LOGIC: If more than 3 days away, always GREEN (risk = 0)
+  if (daysUntilSend > 3) {
+    // Update risk score to 0 (green)
+    const { error } = await supabase
+      .from('issues')
+      .update({ risk_score: 0 })
+      .eq('id', issueId)
+    if (error) throw new Error(`Failed to update risk score: ${error.message}`)
+    return
   }
 
-  // +1 if formatted=false AND < 48 hours
-  if (hoursUntilSend < 48 && !checklist?.formatted) {
-    risk += 1
+  // Count conditions (only calculate if within 3 days)
+  let conditionsMet = 0
+  
+  // Missing slots condition
+  const missingSlots = slots?.filter(s => s.status === 'missing').length || 0
+  if (missingSlots > 0) conditionsMet++
+  
+  // Draft slots condition
+  const draftSlots = slots?.filter(s => s.status === 'draft').length || 0
+  if (draftSlots > 0) conditionsMet++
+  
+  // Checklist conditions
+  if (!checklist?.articles_complete) conditionsMet++
+  if (!checklist?.seo_verified) conditionsMet++
+  if (!checklist?.internal_links_verified) conditionsMet++
+  if (!checklist?.formatted) conditionsMet++
+
+  // Calculate base risk score
+  let risk = 0
+
+  // Only apply risk if 2+ conditions are met AND within 3 days
+  if (conditionsMet >= 2) {
+    // +2 for each missing slot
+    risk += missingSlots * 2
+    // +1 for each draft slot
+    risk += draftSlots * 1
+  }
+
+  // Time-based escalations (only if within 3 days and has problems)
+  if (conditionsMet >= 2) {
+    // Within 24 hours: +2 risk
+    if (hoursUntilSend < 24) {
+      risk += 2
+    }
+    // Within 48 hours: +1 risk
+    else if (hoursUntilSend < 48) {
+      risk += 1
+    }
+    // Within 72 hours (3 days): +0 but still show yellow/red from base
+  }
+
+  // 🚨 AUTO-ARTICLE CREATION TRIGGER
+  // If risk is high (RED) and within 3 days, trigger article creation
+  const isHighRisk = risk >= 6  // Threshold for RED
+  if (isHighRisk && daysUntilSend <= 3 && !normalizedIssue.auto_articles_triggered) {
+    // Mark that auto-creation was triggered to prevent duplicates
+    await supabase
+      .from('issues')
+      .update({ auto_articles_triggered: true })
+      .eq('id', issueId)
+    
+    // Trigger article creation (async, don't block risk update)
+    createDraftArticlesForIssue(issueId, missingSlots).catch(console.error)
   }
 
   // Update risk score
@@ -285,6 +323,51 @@ export async function recomputeRisk(issueId: string) {
     .eq('id', issueId)
 
   if (error) throw new Error(`Failed to update risk score: ${error.message}`)
+}
+
+/**
+ * Auto-create draft articles when risk turns red
+ * This gets triggered when within 3 days and high risk
+ */
+async function createDraftArticlesForIssue(issueId: string, missingCount: number) {
+  try {
+    // Get issue and publication details
+    const { data: issue } = await supabase
+      .from('issues')
+      .select('*, publications(name)')  
+      .eq('id', issueId)
+      .single()
+
+    if (!issue) return
+
+    const publicationName = issue.publications?.name || 'Unknown'
+    
+    // TODO: Create articles based on publication's pillar content strategy
+    // For now, log that this would create articles
+    console.log(`🤖 AUTO-ARTICLE CREATION TRIGGERED for ${publicationName}`)
+    console.log(`   Issue ID: ${issueId}`)
+    console.log(`   Missing articles needed: ${missingCount}`)
+    console.log(`   Action: Create ${missingCount} draft articles and post to Letterman`)
+    
+    // This is where we'd:
+    // 1. Query the publication's content strategy/pillars
+    // 2. Generate article outlines/topics
+    // 3. Create articles in Letterman as drafts
+    // 4. Update slots with article URLs
+    // 5. Send alert to user
+    
+    // For now, we'll just update the issue with a note
+    await supabase
+      .from('issues')
+      .update({ 
+        auto_articles_status: 'pending_creation',
+        auto_articles_requested_at: new Date().toISOString()
+      })
+      .eq('id', issueId)
+      
+  } catch (error) {
+    console.error('Error in auto-article creation:', error)
+  }
 }
 
 /**

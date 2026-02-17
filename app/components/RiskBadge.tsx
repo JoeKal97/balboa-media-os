@@ -14,16 +14,18 @@ export default function RiskBadge({ risk }: RiskBadgeProps) {
   let label = 'GREEN'
   let tooltip = 'No immediate risks'
 
-  if (risk >= 4) {
+  if (risk >= 6) {
     bgColor = 'bg-red-100'
     textColor = 'text-red-800'
     label = 'RED'
-    tooltip = 'Critical: Missing slots or checklist items with <24h remaining'
+    tooltip = 'Critical: 2+ conditions met within 3 days of deadline. Auto-creating articles...'
   } else if (risk >= 2) {
     bgColor = 'bg-yellow-100'
     textColor = 'text-yellow-800'
     label = 'YELLOW'
-    tooltip = 'Warning: Articles missing or draft, or formatting incomplete'
+    tooltip = 'Warning: 2+ conditions met within 3 days. Review needed.'
+  } else if (risk === 0) {
+    tooltip = 'All good! More than 3 days until deadline or all conditions met.'
   }
 
   return (

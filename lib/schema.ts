@@ -20,6 +20,9 @@ export interface Issue {
   status: IssueStatus
   risk_score: number
   is_overdue?: boolean // Set when issue's send date passed but wasn't marked "sent"
+  auto_articles_triggered?: boolean // Set when auto-article creation was triggered
+  auto_articles_status?: 'pending_creation' | 'creating' | 'completed' | 'failed'
+  auto_articles_requested_at?: string
   created_at: string
   updated_at: string
 }
