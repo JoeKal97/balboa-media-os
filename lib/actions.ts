@@ -358,9 +358,9 @@ export async function syncFromLetterman(issueId: string) {
     try {
       // Get all Letterman publications to search across
       const pubsRes = await fetch('https://api.letterman.ai/api/ai/newsletters-storage', {
+        method: 'GET',
         headers: {
           'Authorization': `Bearer ${lettermanKey}`,
-          'Content-Type': 'application/json',
         },
       })
 
@@ -373,9 +373,9 @@ export async function syncFromLetterman(issueId: string) {
         const articlesRes = await fetch(
           `https://api.letterman.ai/api/ai/newsletters-storage/${pub._id}/newsletters?type=ARTICLE`,
           {
+            method: 'GET',
             headers: {
               'Authorization': `Bearer ${lettermanKey}`,
-              'Content-Type': 'application/json',
             },
           }
         )
@@ -384,10 +384,14 @@ export async function syncFromLetterman(issueId: string) {
 
         const articles = await articlesRes.json()
 
-        // Find article by URL match
+        // Extract slug from Balboa URL (last segment after final /)
+        const slotSlug = slot.article_url.split('/').pop() || ''
+        
+        // Find article by slug match (handles missing domain and /a/ prefix)
         const article = articles.find((a: any) => {
-          const articleUrl = a.urlPath ? `https://${pub.domain}/${a.urlPath}` : null
-          return articleUrl === slot.article_url
+          if (!a.urlPath) return false
+          const lettermanSlug = a.urlPath.split('/').pop() || a.urlPath
+          return lettermanSlug === slotSlug
         })
 
         if (article && article.state === 'PUBLISHED') {
