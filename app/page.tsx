@@ -1,4 +1,4 @@
-import { listPublications, getOrCreateNextIssue, getIssueWithDetails, getIssueHistory } from '@/lib/actions'
+import { listPublications, getOrCreateNextIssue, getIssueWithDetails, getIssueHistory, recalculateAllRisks } from '@/lib/actions'
 import CommandCenter from '@/app/components/CommandCenter'
 import { detectSendDatetimeColumn } from '@/lib/schemaAdapter'
 
@@ -13,6 +13,9 @@ export default async function Home() {
   try {
     // Initialize schema detection
     await detectSendDatetimeColumn()
+    
+    // 🎯 Force recalculate all risks on page load (updates cached scores with new logic)
+    await recalculateAllRisks().catch(err => console.log('Risk recalc error (non-critical):', err))
     
     const publications = await listPublications()
 
