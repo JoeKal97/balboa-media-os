@@ -1,6 +1,10 @@
 import { listPublications, getOrCreateNextIssue, getIssueWithDetails } from '@/lib/actions'
 import PlanningView from '@/app/components/PlanningView'
 
+// Force dynamic rendering - always fetch fresh data
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export default async function PlanningPage() {
   try {
     const publications = await listPublications()
