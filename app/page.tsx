@@ -4,6 +4,7 @@ import { detectSendDatetimeColumn } from '@/lib/schemaAdapter'
 
 // Force dynamic rendering - ALWAYS fetch fresh data from Supabase
 // No ISR, no caching, no pre-rendering
+// Cache bust: 2026-02-16 20:21
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
