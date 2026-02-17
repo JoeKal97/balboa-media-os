@@ -555,3 +555,30 @@ export async function syncFromLetterman(issueId: string) {
       : 'No articles were published yet'
   }
 }
+
+/**
+ * Force recalculate risk for all issues
+ * Use this after deploying new risk logic to update all cached risk scores
+ */
+export async function recalculateAllRisks() {
+  const { data: issues, error } = await supabase
+    .from('issues')
+    .select('id')
+    .neq('status', 'sent')  // Only recalculate unsent issues
+
+  if (error) {
+    throw new Error(`Failed to fetch issues: ${error.message}`)
+  }
+
+  let updated = 0
+  for (const issue of issues || []) {
+    try {
+      await recomputeRisk(issue.id)
+      updated++
+    } catch (err) {
+      console.error(`Error recalculating risk for issue ${issue.id}:`, err)
+    }
+  }
+
+  return { updated, total: issues?.length || 0 }
+}
