@@ -75,22 +75,18 @@ export async function getOrCreateNextIssue(publicationId: string): Promise<Issue
     'yyyy-MM-dd'
   )
 
+  // Query for an issue matching the computed next send date
   const { data: existingIssue } = await supabase
     .from('issues')
     .select('*')
     .eq('publication_id', publicationId)
-    .order(dateTimeColumnName, { ascending: true })
+    .eq('issue_date', issueDateLocal)
     .limit(1)
 
   if (existingIssue && existingIssue.length > 0) {
     const issue = existingIssue[0]
     const normalized = normalizeIssueData(issue)
-    
-    // Check if it's in the future
-    const sendTime = new Date(normalized.send_datetime_utc)
-    if (sendTime > new Date()) {
-      return normalized
-    }
+    return normalized
   }
 
   // Create new issue in a transaction-like manner
