@@ -18,7 +18,7 @@ export async function listPublications(): Promise<Publication[]> {
     .eq('is_active', true)
     .order('name', { ascending: true })
 
-  if (error) throw error
+  if (error) throw new Error(`Failed to list publications: ${error.message}`)
   return data || []
 }
 
@@ -61,7 +61,7 @@ export async function getOrCreateNextIssue(publicationId: string): Promise<Issue
     .eq('id', publicationId)
     .single()
 
-  if (pubError) throw pubError
+  if (pubError) throw new Error(`Failed to fetch publication: ${pubError.message}`)
 
   const pub: Publication = pubData
 
@@ -112,7 +112,7 @@ export async function getOrCreateNextIssue(publicationId: string): Promise<Issue
     .select()
     .single()
 
-  if (issueError) throw issueError
+  if (issueError) throw new Error(`Failed to create issue: ${issueError.message}`)
 
   const issue: Issue = normalizeIssueData(issueData)
 
@@ -129,7 +129,7 @@ export async function getOrCreateNextIssue(publicationId: string): Promise<Issue
     .from('issue_article_slots')
     .insert(slots)
 
-  if (slotsError) throw slotsError
+  if (slotsError) throw new Error(`Failed to create article slots: ${slotsError.message}`)
 
   // 3. Create checklist
   const { error: checklistError } = await supabase
@@ -143,7 +143,7 @@ export async function getOrCreateNextIssue(publicationId: string): Promise<Issue
       sent: false,
     })
 
-  if (checklistError) throw checklistError
+  if (checklistError) throw new Error(`Failed to create checklist: ${checklistError.message}`)
 
   return issue
 }
@@ -164,7 +164,7 @@ export async function updateSlot(
     .update(fields)
     .eq('id', slotId)
 
-  if (error) throw error
+  if (error) throw new Error(`Failed to update slot: ${error.message}`)
 
   // Recompute risk after slot update
   const { data: slot } = await supabase
@@ -196,7 +196,7 @@ export async function updateChecklist(
     .update(fields)
     .eq('issue_id', issueId)
 
-  if (error) throw error
+  if (error) throw new Error(`Failed to update checklist: ${error.message}`)
 
   // Recompute risk after checklist update
   await recomputeRisk(issueId)
@@ -268,7 +268,7 @@ export async function recomputeRisk(issueId: string) {
     .update({ risk_score: risk })
     .eq('id', issueId)
 
-  if (error) throw error
+  if (error) throw new Error(`Failed to update risk score: ${error.message}`)
 }
 
 /**
@@ -280,7 +280,7 @@ export async function setIssueStatus(issueId: string, status: IssueStatus) {
     .update({ status })
     .eq('id', issueId)
 
-  if (error) throw error
+  if (error) throw new Error(`Failed to update issue status: ${error.message}`)
 
   // If marking as sent, update checklist
   if (status === 'sent') {
