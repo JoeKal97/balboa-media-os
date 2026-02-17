@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { toZonedTime } from 'date-fns-tz'
 
 interface CountdownTimerProps {
   sendDatetimeUtc: string // ISO string in UTC
@@ -24,8 +23,8 @@ export default function CountdownTimer({
     try {
       const targetUtc = new Date(sendDatetimeUtc)
       if (!isNaN(targetUtc.getTime())) {
-        const targetLocal = toZonedTime(targetUtc, timezone)
-        return targetLocal.toLocaleString('en-US', {
+        return targetUtc.toLocaleString('en-US', {
+          timeZone: timezone,
           weekday: 'short',
           year: 'numeric',
           month: 'short',
@@ -45,8 +44,11 @@ export default function CountdownTimer({
   useEffect(() => {
     const updateCountdown = () => {
       try {
-        // Parse the UTC time
-        const targetUtc = new Date(sendDatetimeUtc)
+        // Force parse as UTC by ensuring the string ends with Z
+        const utcString = sendDatetimeUtc.endsWith('Z') || sendDatetimeUtc.includes('+') 
+          ? sendDatetimeUtc 
+          : sendDatetimeUtc + 'Z'
+        const targetUtc = new Date(utcString)
         
         // Validate that we have a valid date
         if (isNaN(targetUtc.getTime())) {
@@ -73,9 +75,9 @@ export default function CountdownTimer({
 
         setCountdown({ days, hours, minutes, seconds })
         
-        // Convert UTC to local timezone for display
-        const targetLocal = toZonedTime(targetUtc, timezone)
-        const displayStr = targetLocal.toLocaleString('en-US', {
+        // Convert UTC to target timezone for display
+        const displayStr = targetUtc.toLocaleString('en-US', {
+          timeZone: timezone,
           weekday: 'short',
           year: 'numeric',
           month: 'short',
