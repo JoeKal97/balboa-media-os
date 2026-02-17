@@ -7,6 +7,7 @@ import {
   updateSlot,
   updateChecklist,
   setIssueStatus,
+  syncFromLetterman,
 } from '@/lib/actions'
 import CountdownTimer from './CountdownTimer'
 import RiskBadge from './RiskBadge'
@@ -28,6 +29,8 @@ export default function IssueCard({
   const [checklist, setChecklist] = useState<IssueChecklist>(issueDetails.checklist || {})
   const [currentIssue, setCurrentIssue] = useState(issue)
   const [saving, setSaving] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [syncMessage, setSyncMessage] = useState('')
 
   // Sync internal state when props change (e.g., user selects different publication)
   useEffect(() => {
@@ -40,10 +43,20 @@ export default function IssueCard({
     async (slotId: string, field: string, value: any) => {
       setSaving(true)
       try {
-        await updateSlot(slotId, { [field]: value })
+        const updates: any = { [field]: value }
+        
+        // Auto-set to "draft" when URL is pasted and status is "missing"
+        if (field === 'article_url' && value && value.trim()) {
+          const slot = slots.find(s => s.id === slotId)
+          if (slot?.status === 'missing') {
+            updates.status = 'draft'
+          }
+        }
+        
+        await updateSlot(slotId, updates)
         setSlots((prev) =>
           prev.map((s) =>
-            s.id === slotId ? { ...s, [field]: value } : s
+            s.id === slotId ? { ...s, ...updates } : s
           )
         )
         await onRefresh()
@@ -53,7 +66,7 @@ export default function IssueCard({
         setSaving(false)
       }
     },
-    [onRefresh]
+    [onRefresh, slots]
   )
 
   const handleChecklistChange = useCallback(
@@ -116,6 +129,25 @@ export default function IssueCard({
     }
   }, [currentIssue, onRefresh])
 
+  const handleSyncLetterman = useCallback(async () => {
+    setSyncing(true)
+    setSyncMessage('')
+    try {
+      const result = await syncFromLetterman(currentIssue.id)
+      setSyncMessage(result.message)
+      await onRefresh()
+      
+      // Clear message after 3 seconds
+      setTimeout(() => setSyncMessage(''), 3000)
+    } catch (error) {
+      console.error('Error syncing from Letterman:', error)
+      setSyncMessage('Error syncing from Letterman')
+      setTimeout(() => setSyncMessage(''), 3000)
+    } finally {
+      setSyncing(false)
+    }
+  }, [currentIssue.id, onRefresh])
+
   const canMarkReady =
     currentIssue.status === 'draft' &&
     checklist.articles_complete &&
@@ -165,9 +197,24 @@ export default function IssueCard({
 
       {/* Slots Panel */}
       <div className="rounded-lg border border-slate-200 bg-white p-6">
-        <h3 className="mb-4 text-lg font-semibold text-slate-900">
-          Articles ({publication.articles_required_per_issue} required, {missingCount} missing)
-        </h3>
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-slate-900">
+            Articles ({publication.articles_required_per_issue} required, {missingCount} missing)
+          </h3>
+          <button
+            onClick={handleSyncLetterman}
+            disabled={syncing || saving}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            {syncing ? 'Syncing...' : 'Sync from Letterman'}
+          </button>
+        </div>
+
+        {syncMessage && (
+          <div className="mb-4 rounded-lg bg-blue-50 px-4 py-2 text-sm text-blue-900">
+            {syncMessage}
+          </div>
+        )}
 
         <div className="space-y-4">
           {slots.map((slot) => (

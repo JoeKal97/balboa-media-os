@@ -331,3 +331,110 @@ export async function getIssueHistory(publicationId: string, limit: number = 8) 
 
   return normalizeIssuesArray(data || [])
 }
+
+/**
+ * Sync article slots with Letterman to detect published articles
+ * Matches by URL and updates status from "draft" to "published"
+ */
+export async function syncFromLetterman(issueId: string) {
+  // Get Letterman API key from credentials file
+  const fs = require('fs')
+  const path = require('path')
+  const credPath = path.join(process.cwd(), '..', 'credentials', 'titanium_software.txt')
+  
+  let lettermanKey = ''
+  try {
+    const creds = fs.readFileSync(credPath, 'utf-8')
+    const match = creds.match(/Letterman:\s*(.+)/i)
+    if (match) {
+      lettermanKey = match[1].trim()
+    }
+  } catch (err) {
+    throw new Error('Letterman API key not found in credentials/titanium_software.txt')
+  }
+
+  if (!lettermanKey) {
+    throw new Error('Letterman API key not found in credentials')
+  }
+
+  // Get all slots for this issue
+  const { data: slots, error: slotsError } = await supabase
+    .from('issue_article_slots')
+    .select('*')
+    .eq('issue_id', issueId)
+    .eq('status', 'draft')
+    .not('article_url', 'is', null)
+
+  if (slotsError) throw new Error(`Failed to fetch slots: ${slotsError.message}`)
+  if (!slots || slots.length === 0) return { updated: 0, message: 'No draft articles to check' }
+
+  let updated = 0
+
+  // For each draft slot with a URL, check Letterman
+  for (const slot of slots) {
+    try {
+      // Get all Letterman publications to search across
+      const pubsRes = await fetch('https://api.letterman.ai/api/ai/newsletters-storage', {
+        headers: {
+          'Authorization': `Bearer ${lettermanKey}`,
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!pubsRes.ok) continue
+
+      const pubs = await pubsRes.json()
+
+      // Search each publication for the article
+      for (const pub of pubs) {
+        const articlesRes = await fetch(
+          `https://api.letterman.ai/api/ai/newsletters-storage/${pub._id}/newsletters?type=ARTICLE`,
+          {
+            headers: {
+              'Authorization': `Bearer ${lettermanKey}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        )
+
+        if (!articlesRes.ok) continue
+
+        const articles = await articlesRes.json()
+
+        // Find article by URL match
+        const article = articles.find((a: any) => {
+          const articleUrl = a.urlPath ? `https://${pub.domain}/${a.urlPath}` : null
+          return articleUrl === slot.article_url
+        })
+
+        if (article && article.state === 'PUBLISHED') {
+          // Update slot to published
+          const { error: updateError } = await supabase
+            .from('issue_article_slots')
+            .update({ status: 'published' })
+            .eq('id', slot.id)
+
+          if (!updateError) {
+            updated++
+          }
+          break // Found the article, no need to check other pubs
+        }
+      }
+    } catch (err) {
+      console.error(`Error checking slot ${slot.id}:`, err)
+      // Continue with other slots
+    }
+  }
+
+  // Recompute risk after updates
+  if (updated > 0) {
+    await recomputeRisk(issueId)
+  }
+
+  return {
+    updated,
+    message: updated > 0
+      ? `Updated ${updated} article${updated > 1 ? 's' : ''} to published`
+      : 'No articles were published yet'
+  }
+}
