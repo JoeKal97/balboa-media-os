@@ -19,6 +19,7 @@ export interface Issue {
   send_datetime_utc: string // ISO timestamp in UTC (the actual moment to send)
   status: IssueStatus
   risk_score: number
+  is_overdue?: boolean // Set when issue's send date passed but wasn't marked "sent"
   created_at: string
   updated_at: string
 }

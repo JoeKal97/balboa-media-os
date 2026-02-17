@@ -52,6 +52,7 @@ function computeNextSendDateTime(pub: Publication): Date {
 
 /**
  * Get or create the next issue for a publication
+ * CRITICAL: Will NOT create a new issue if there's an unsent past issue
  */
 export async function getOrCreateNextIssue(publicationId: string): Promise<Issue> {
   // Fetch the publication
@@ -68,14 +69,34 @@ export async function getOrCreateNextIssue(publicationId: string): Promise<Issue
   // Detect which column name to use
   const dateTimeColumnName = await getDatetimeColumnName()
 
-  // Check if next issue already exists
+  // 🚨 CRITICAL FIX: Check for unsent past issues FIRST
+  // If the send date has passed but issue wasn't marked "sent", return that issue
+  const nowUtc = new Date().toISOString()
+  const { data: unsentPastIssues } = await supabase
+    .from('issues')
+    .select('*')
+    .eq('publication_id', publicationId)
+    .lt(dateTimeColumnName, nowUtc)  // Send datetime is in the past
+    .neq('status', 'sent')  // Not marked as sent
+    .order('issue_date', { ascending: false })  // Most recent first
+    .limit(1)
+
+  if (unsentPastIssues && unsentPastIssues.length > 0) {
+    // Found an unsent past issue - return it with overdue flag
+    const issue = unsentPastIssues[0]
+    const normalized = normalizeIssueData(issue)
+    // Add overdue flag to indicate this issue is past due
+    return { ...normalized, is_overdue: true }
+  }
+
+  // Compute the next send date
   const nextSendDateTime = computeNextSendDateTime(pub)
   const issueDateLocal = format(
     toZonedTime(nextSendDateTime, TIMEZONE),
     'yyyy-MM-dd'
   )
 
-  // Query for an issue matching the computed next send date
+  // Check if next issue already exists
   const { data: existingIssue } = await supabase
     .from('issues')
     .select('*')
@@ -91,7 +112,6 @@ export async function getOrCreateNextIssue(publicationId: string): Promise<Issue
 
   // Create new issue in a transaction-like manner
   // 1. Create issue
-  // The app auto-detects whether to use send_datetime_utc (new) or send_datetime_local (old)
   const issuePayload: any = {
     publication_id: publicationId,
     issue_date: issueDateLocal,
