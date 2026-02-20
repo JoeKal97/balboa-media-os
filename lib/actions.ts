@@ -582,3 +582,317 @@ export async function recalculateAllRisks() {
 
   return { updated, total: issues?.length || 0 }
 }
+
+// ============================================
+// ANALYTICS & KPI FUNCTIONS
+// ============================================
+
+export interface KPIData {
+  totalSubscribers: number
+  subscriberGrowth: number
+  subscriberGrowthPercent: number
+  monthlyRevenue: number
+  revenueTarget: number
+  revenueGap: number
+  organicTraffic: number
+  trafficGrowth: number
+  domainAuthority: number | null
+  referringDomains: number | null
+  activeDFYCampaigns: number
+}
+
+export interface PublicationMetric {
+  publicationId: string
+  publicationName: string
+  totalSubscribers: number
+  organicTraffic: number
+  newSubscribers: number
+  trend: 'up' | 'down' | 'flat'
+  openRate: number | null
+}
+
+export interface KeywordRanking {
+  id: string
+  keyword: string
+  articleUrl: string | null
+  targetPage: string
+  position: number | null
+  previousPosition: number | null
+  change: number | null
+  searchVolume: number | null
+  checkedAt: string
+  notes: string | null
+}
+
+/**
+ * Get current KPI summary data
+ */
+export async function getKPISummary(): Promise<KPIData> {
+  // Get latest subscriber counts
+  const { data: latestMetrics, error: metricsError } = await supabase
+    .from('newsletter_metrics')
+    .select('*')
+    .order('date', { ascending: false })
+    .limit(1)
+
+  if (metricsError) console.error('Error fetching metrics:', metricsError)
+
+  // Get previous week for growth calc
+  const { data: previousMetrics } = await supabase
+    .from('newsletter_metrics')
+    .select('*')
+    .order('date', { ascending: false })
+    .range(1, 7)
+
+  // Get business goals
+  const { data: goals } = await supabase
+    .from('business_goals')
+    .select('*')
+    .single()
+
+  // Get latest SEO health
+  const { data: seoHealth } = await supabase
+    .from('seo_health')
+    .select('*')
+    .order('month', { ascending: false })
+    .limit(1)
+    .single()
+
+  // Get revenue for current month
+  const now = new Date()
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+  const { data: revenue } = await supabase
+    .from('revenue_tracking')
+    .select('*')
+    .gte('month', monthStart)
+    .order('date', { ascending: false })
+    .limit(1)
+    .single()
+
+  // Calculate totals
+  const totalSubscribers = latestMetrics?.reduce((sum, m) => sum + (m.total_subscribers || 0), 0) || 0
+  const previousSubscribers = previousMetrics?.reduce((sum, m) => sum + (m.total_subscribers || 0), 0) || totalSubscribers
+  const subscriberGrowth = totalSubscribers - previousSubscribers
+  const subscriberGrowthPercent = previousSubscribers > 0 ? (subscriberGrowth / previousSubscribers) * 100 : 0
+
+  const organicTraffic = latestMetrics?.reduce((sum, m) => sum + (m.organic_traffic_7d || 0), 0) || 0
+  const previousTraffic = previousMetrics?.reduce((sum, m) => sum + (m.organic_traffic_7d || 0), 0) || organicTraffic
+  const trafficGrowth = organicTraffic - previousTraffic
+
+  const monthlyRevenue = revenue?.total_revenue || 0
+  const revenueTarget = goals?.target_monthly_revenue || 10000
+
+  return {
+    totalSubscribers,
+    subscriberGrowth,
+    subscriberGrowthPercent,
+    monthlyRevenue,
+    revenueTarget,
+    revenueGap: revenueTarget - monthlyRevenue,
+    organicTraffic,
+    trafficGrowth,
+    domainAuthority: seoHealth?.domain_authority || null,
+    referringDomains: seoHealth?.referring_domains || null,
+    activeDFYCampaigns: seoHealth?.dfy_campaigns_run || 0
+  }
+}
+
+/**
+ * Get per-publication metrics
+ */
+export async function getPublicationMetrics(): Promise<PublicationMetric[]> {
+  // Get latest metrics for each publication
+  const { data: metrics, error } = await supabase
+    .from('newsletter_metrics')
+    .select('*')
+    .order('date', { ascending: false })
+
+  if (error) {
+    console.error('Error fetching publication metrics:', error)
+    return []
+  }
+
+  // Group by publication and get latest
+  const pubMap = new Map<string, any>()
+  for (const m of metrics || []) {
+    if (!pubMap.has(m.publication_id)) {
+      pubMap.set(m.publication_id, m)
+    }
+  }
+
+  // Calculate trends (compare to 7 days ago)
+  const sevenDaysAgo = new Date()
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+
+  const result: PublicationMetric[] = []
+  for (const [pubId, latest] of pubMap) {
+    const previous = metrics?.find(m => 
+      m.publication_id === pubId && 
+      new Date(m.date) <= sevenDaysAgo
+    )
+
+    const growth = previous ? latest.total_subscribers - previous.total_subscribers : 0
+    const trend: 'up' | 'down' | 'flat' = 
+      growth > 0 ? 'up' : growth < 0 ? 'down' : 'flat'
+
+    result.push({
+      publicationId: pubId,
+      publicationName: latest.publication_name,
+      totalSubscribers: latest.total_subscribers || 0,
+      organicTraffic: latest.organic_traffic_7d || 0,
+      newSubscribers: latest.new_subscribers || 0,
+      trend,
+      openRate: latest.open_rate
+    })
+  }
+
+  return result.sort((a, b) => b.totalSubscribers - a.totalSubscribers)
+}
+
+/**
+ * Get keyword rankings
+ */
+export async function getKeywordRankings(limit: number = 50): Promise<KeywordRanking[]> {
+  const { data, error } = await supabase
+    .from('keyword_rankings')
+    .select('*')
+    .order('checked_at', { ascending: false })
+    .limit(limit)
+
+  if (error) {
+    console.error('Error fetching keyword rankings:', error)
+    return []
+  }
+
+  return (data || []).map(r => ({
+    id: r.id,
+    keyword: r.keyword,
+    articleUrl: r.article_url,
+    targetPage: r.target_page,
+    position: r.position,
+    previousPosition: r.previous_position,
+    change: r.change,
+    searchVolume: r.search_volume,
+    checkedAt: r.checked_at,
+    notes: r.notes
+  }))
+}
+
+/**
+ * Get SEO health history (last 6 months)
+ */
+export async function getSEOHealthHistory() {
+  const { data, error } = await supabase
+    .from('seo_health')
+    .select('*')
+    .order('month', { ascending: false })
+    .limit(6)
+
+  if (error) {
+    console.error('Error fetching SEO health:', error)
+    return []
+  }
+
+  return data || []
+}
+
+/**
+ * Save keyword ranking (for weekly tracking)
+ */
+export async function saveKeywordRanking(
+  keyword: string,
+  position: number,
+  targetPage: string,
+  articleUrl?: string,
+  searchVolume?: number,
+  notes?: string
+) {
+  // Get previous position for this keyword
+  const { data: previous } = await supabase
+    .from('keyword_rankings')
+    .select('position')
+    .eq('keyword', keyword)
+    .order('checked_at', { ascending: false })
+    .limit(1)
+    .single()
+
+  const { data, error } = await supabase
+    .from('keyword_rankings')
+    .insert({
+      keyword,
+      position,
+      previous_position: previous?.position || null,
+      target_page: targetPage,
+      article_url: articleUrl || null,
+      search_volume: searchVolume || null,
+      notes: notes || null
+    })
+    .select()
+    .single()
+
+  if (error) throw new Error(`Failed to save keyword ranking: ${error.message}`)
+  return data
+}
+
+/**
+ * Update newsletter metrics (for weekly tracking)
+ */
+export async function updateNewsletterMetrics(
+  publicationId: string,
+  publicationName: string,
+  metrics: {
+    organicTraffic7d?: number
+    newSubscribers?: number
+    totalSubscribers?: number
+    trafficSourceOrganic?: number
+    trafficSourceSocial?: number
+    trafficSourceDirect?: number
+    trafficSourceReferral?: number
+    openRate?: number
+    clickRate?: number
+  }
+) {
+  const { data, error } = await supabase
+    .from('newsletter_metrics')
+    .insert({
+      publication_id: publicationId,
+      publication_name: publicationName,
+      organic_traffic_7d: metrics.organicTraffic7d,
+      new_subscribers: metrics.newSubscribers,
+      total_subscribers: metrics.totalSubscribers,
+      traffic_source_organic: metrics.trafficSourceOrganic,
+      traffic_source_social: metrics.trafficSourceSocial,
+      traffic_source_direct: metrics.trafficSourceDirect,
+      traffic_source_referral: metrics.trafficSourceReferral,
+      open_rate: metrics.openRate,
+      click_rate: metrics.clickRate
+    })
+    .select()
+    .single()
+
+  if (error) throw new Error(`Failed to update metrics: ${error.message}`)
+  return data
+}
+
+/**
+ * Export tracking data to CSV format
+ */
+export async function exportTrackingData(type: 'keywords' | 'traffic' | 'backlinks'): Promise<string> {
+  let csv = ''
+  
+  if (type === 'keywords') {
+    const { data } = await supabase
+      .from('keyword_rankings')
+      .select('*')
+      .order('checked_at', { ascending: false })
+    
+    csv = 'keyword,article_url,target_page,position,previous_position,change,search_volume,checked_at,notes\n'
+    for (const row of data || []) {
+      csv += `"${row.keyword}","${row.article_url || ''}","${row.target_page}",${row.position || ''},${row.previous_position || ''},${row.change || ''},${row.search_volume || ''},${row.checked_at},"${row.notes || ''}"\n`
+    }
+  }
+  
+  // Similar for other types...
+  
+  return csv
+}

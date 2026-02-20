@@ -40,6 +40,12 @@ export default function RootLayout({
               >
                 Weekly Planning
               </a>
+              <a
+                href="/analytics"
+                className="border-b-2 border-transparent px-1 py-4 text-sm font-medium text-slate-700 hover:border-blue-500 hover:text-blue-600"
+              >
+                Analytics & KPIs
+              </a>
             </div>
           </div>
         </nav>
